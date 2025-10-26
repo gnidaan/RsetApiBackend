@@ -1,0 +1,20 @@
+# Variables for MSYS2 environment
+MVNW := "./mvnw"
+SLEEP_CMD := "sleep"
+DEFAULT_SLEEP := "5"
+
+# Default task
+default:
+    just test
+
+# Test task
+test: format
+    {{MVNW}} clean verify
+
+# Format code
+format:
+    {{MVNW}} spotless:apply
+
+# Sleep task - always uses default duration
+sleep:
+    {{SLEEP_CMD}} {{DEFAULT_SLEEP}}
