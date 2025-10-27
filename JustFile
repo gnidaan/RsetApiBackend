@@ -1,11 +1,13 @@
-# Variables for MSYS2 environment
+# Variables
 MVNW := "./mvnw"
 SLEEP_CMD := "sleep"
 DEFAULT_SLEEP := "5"
+DC_DIR := "deployment/dockerfile"
+INFRA_DC_FILE := DC_DIR + "/infra.yml"
 
 # Default task
 default:
-    just test
+    {{MVNW}} clean verify
 
 # Test task
 test: format
@@ -15,6 +17,30 @@ test: format
 format:
     {{MVNW}} spotless:apply
 
-# Sleep task - always uses default duration
+# Sleep task
 sleep:
     {{SLEEP_CMD}} {{DEFAULT_SLEEP}}
+
+# Infrastructure tasks - UPDATED with better cleanup
+start_infra:
+    docker compose -f {{INFRA_DC_FILE}} up -d --remove-orphans
+
+stop_infra:
+    docker compose -f {{INFRA_DC_FILE}} down -v --remove-orphans
+    docker container prune -f
+
+# Force cleanup for stubborn containers
+force_cleanup:
+    docker compose -f {{INFRA_DC_FILE}} down -v --remove-orphans
+    docker rm -f postgres-sql-bsn mail-dev-bsn pgadmin-bsn 2>/dev/null || true
+    docker container prune -f
+    docker network prune -f
+
+restart_infra: force_cleanup sleep start_infra
+
+# Open pgAdmin
+pgadmin:
+    @echo "pgAdmin: http://localhost:8080 (admin@booksocial.net/admin)"
+
+# Development workflow
+dev: restart_infra test
