@@ -1,4 +1,6 @@
 spring:
+  application:
+    name: bookstore-app
   profiles:
     active: dev
   servlet:
@@ -10,3 +12,18 @@ server:
   servlet:
     context-path: /api/v1/
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*" # Exposes all management endpoints via web
+  info:
+    git:
+      mode: full # Enables full Git info in the /info endpoint
+  metrics:
+    tags:
+      application: ${spring.application.name} # Adds an 'application' tag to all metrics, using the app's name
+  tracing:
+    enabled: false # Disables distributed tracing
+    sampling:
+      probability: 1.0 # Sets tracing sampling probability to 100% (if tracing were enabled)
