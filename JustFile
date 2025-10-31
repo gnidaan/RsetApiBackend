@@ -1,46 +1,150 @@
 # Variables
-MVNW := "./mvnw"
-SLEEP_CMD := "sleep"
-DEFAULT_SLEEP := "5"
-DC_DIR := "deployment/dockerfile"
-INFRA_DC_FILE := DC_DIR + "/infra.yml"
+MVNW := './mvnw'
+SLEEP_CMD := 'sleep'
+DEFAULT_SLEEP := '5'
+DC_DIR := 'deployment/dockerfile'
+INFRA_DC_FILE := DC_DIR + '/infra.yml'
+APP_DC_FILE := DC_DIR + '/app.yml' # New: Docker Compose for the Spring Boot app
+WAIT_TIMEOUT := '60'
+APP_NAME := 'book-social-network' # Assuming your JAR name, adjust if different
+APP_VERSION := '0.0.1-SNAPSHOT' # Adjust to your project's version
 
 # Default task
 default:
+    @echo "🧹 Running full build..."
     {{MVNW}} clean verify
 
 # Test task
 test: format
+    @echo "🧪 Running tests..."
     {{MVNW}} clean verify
 
 # Format code
 format:
+    @echo "✨ Formatting code..."
     {{MVNW}} spotless:apply
 
 # Sleep task
 sleep:
+    @echo "😴 Sleeping for {{DEFAULT_SLEEP}} seconds..."
     {{SLEEP_CMD}} {{DEFAULT_SLEEP}}
 
-# Infrastructure tasks - UPDATED with better cleanup
+# --- Infrastructure tasks ---
+
+# Start all infrastructure containers
 start_infra:
+    @echo "🚀 Starting infrastructure..."
     docker compose -f {{INFRA_DC_FILE}} up -d --remove-orphans
 
+# Stop and clean up infrastructure
 stop_infra:
+    @echo "🛑 Stopping and cleaning up infrastructure..."
     docker compose -f {{INFRA_DC_FILE}} down -v --remove-orphans
     docker container prune -f
 
 # Force cleanup for stubborn containers
 force_cleanup:
+    @echo "🧽 Forcing cleanup..."
     docker compose -f {{INFRA_DC_FILE}} down -v --remove-orphans
+    # Also remove app container if it exists
+    docker rm -f {{APP_NAME}}-app 2>/dev/null || true
     docker rm -f postgres-sql-bsn mail-dev-bsn pgadmin-bsn 2>/dev/null || true
     docker container prune -f
     docker network prune -f
 
+# Restart infrastructure cleanly
 restart_infra: force_cleanup sleep start_infra
 
-# Open pgAdmin
-pgadmin:
-    @echo "pgAdmin: http://localhost:8080 (admin@booksocial.net/admin)"
+# --- Database waiters ---
 
-# Development workflow
+# Wait for database to be ready (smart)
+wait_for_db:
+    @echo "⏳ Waiting for database to be ready..."
+    timeout {{WAIT_TIMEOUT}} bash -c 'until docker exec postgres-sql-bsn pg_isready -U postgres -d book_social_network_db; do sleep 2; echo "Waiting..."; done'
+    @echo "✅ Database is ready!"
+
+# Simple wait (fixed delay)
+wait_for_db_simple:
+    @echo "⏳ Waiting for database (simple delay)..."
+    {{SLEEP_CMD}} 15
+    @echo "✅ Database should be ready"
+
+# --- Development workflows (Host-based app execution) ---
+# These assume your Spring Boot app runs directly on your host machine.
+
+# Full dev workflow with proper database wait
+dev_with_db: restart_infra wait_for_db
+    @echo "🚧 Starting Spring Boot app (with DB ready)..."
+    # Assuming -Duser.timezone=Asia/Kolkata is set in your IDE/shell env
+    # For dev, you might still want ddl-auto: update
+    {{MVNW}} spring-boot:run
+
+# Quick dev workflow (just delay)
+dev_quick: restart_infra wait_for_db_simple
+    @echo "🚧 Starting Spring Boot app quickly..."
+    # Assuming -Duser.timezone=Asia/Kolkata is set in your IDE/shell env
+    {{MVNW}} spring-boot:run
+
+# Development workflow (infra + tests)
 dev: restart_infra test
+
+# Run app only (infra must already be up)
+run_app:
+    @echo "▶️ Running Spring Boot app..."
+    # Assuming -Duser.timezone=Asia/Kolkata is set in your IDE/shell env
+    {{MVNW}} spring-boot:run
+
+# --- Production workflows (Container-based app execution) ---
+# These assume your Spring Boot app runs inside a Docker container.
+
+# Build the Spring Boot application JAR and Docker image
+app_build:
+    @echo "📦 Building Spring Boot application JAR and Docker image..."
+    # Builds the JAR
+    {{MVNW}} clean install -DskipTests
+    # Builds the Docker image using Jib or similar if configured in pom.xml
+    # Or you'd use a Dockerfile in your root/deployment/dockerfile for the app.
+    # Example using `docker build` assuming a Dockerfile in project root:
+    # docker build -t {{APP_NAME}}:{{APP_VERSION}} .
+    # If using spring-boot-maven-plugin to build image:
+    {{MVNW}} spring-boot:build-image -Dspring-boot.build-image.imageName={{APP_NAME}}:{{APP_VERSION}}
+
+# Start the Spring Boot application container (for production-like deployment)
+# Requires 'app_build' to be run first.
+start_prod_app: app_build wait_for_db
+    @echo "🚀 Starting Spring Boot application in Docker (prod profile)..."
+    docker compose -f {{APP_DC_FILE}} up -d --remove-orphans
+
+# Stop the Spring Boot application container
+stop_prod_app:
+    @echo "🛑 Stopping Spring Boot application container..."
+    docker compose -f {{APP_DC_FILE}} down -v --remove-orphans
+
+# Full production environment startup
+prod_up: restart_infra app_build wait_for_db start_prod_app
+    @echo "✅ Production environment is up and running!"
+
+# Full production environment shutdown
+prod_down: stop_prod_app stop_infra
+
+# --- Utility tasks ---
+
+# Check infra container status
+infra_status:
+    @echo "🔍 Checking infrastructure status..."
+    docker compose -f {{INFRA_DC_FILE}} ps
+
+# Check app container status
+app_status:
+    @echo "🔍 Checking Spring Boot app container status..."
+    docker compose -f {{APP_DC_FILE}} ps
+
+# Open pgAdmin info
+pgadmin:
+    @echo "🌐 Open pgAdmin at: http://localhost:9090"
+    @echo "Login: admin@booksocial.net / Password: admin"
+
+# Test database connection manually (from host)
+test_db:
+    @echo "🔗 Testing PostgreSQL connection..."
+    docker exec postgres-sql-bsn pg_isready -U postgres -d book_social_network_db

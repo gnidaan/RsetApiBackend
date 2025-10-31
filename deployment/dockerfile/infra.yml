@@ -1,21 +1,20 @@
+version: '3.8'
+
 services:
-  postgres:
-    container_name: postgres-sql-bsn
+  postgres-sql-bsn:
     image: postgres:15
+    container_name: postgres-sql-bsn
     environment:
-      POSTGRES_USER: username
-      POSTGRES_PASSWORD: password
-      PGDATA: /var/lib/postgresql/data
-      POSTGRES_DB: book_social_network
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=book_social_network_db
     ports:
-      - "5432:5432"
+      - "15432:5432"
     networks:
       - bookstore-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U username -d book_social_network"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d book_social_network_db"]  # ← FIXED THIS LINE
       interval: 30s
       timeout: 10s
       retries: 3
@@ -26,16 +25,15 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@booksocial.net
       PGADMIN_DEFAULT_PASSWORD: admin
-      PGADMIN_CONFIG_SERVER_MODE: "False"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
     ports:
-      - "8080:80"
+      - "9090:80"
     networks:
       - bookstore-network
     restart: unless-stopped
     depends_on:
-      - postgres
+      - postgres-sql-bsn
 
   mail-dev:
     container_name: mail-dev-bsn
@@ -53,6 +51,4 @@ networks:
 
 volumes:
   postgres_data:
-    driver: local
   pgadmin_data:
-    driver: local
