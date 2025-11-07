@@ -1,6 +1,8 @@
 package com.learning.bookstore_api.User;
 
 import com.learning.bookstore_api.Role.Role;
+import com.learning.bookstore_api.book.Book;
+import com.learning.bookstore_api.bookhistory.history.BookTransactionHistory;
 import jakarta.persistence.*;
 import java.security.Principal;
 import java.time.LocalDate;
@@ -47,10 +49,12 @@ public class User implements UserDetails, Principal {
 
     @ManyToMany(fetch = FetchType.EAGER)
     private List<Role> roles;
-    //    @OneToMany(mappedBy = "owner")
-    //    private List<Book> books;
-    //    @OneToMany(mappedBy = "user")
-    //    private List<BookTransactionHistory> histories;
+
+    @OneToMany(mappedBy = "owner")
+    private List<Book> books;
+
+    @OneToMany(mappedBy = "user")
+    private List<BookTransactionHistory> histories;
 
     @CreatedDate
     @Column(nullable = false, updatable = false)

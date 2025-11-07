@@ -2,8 +2,7 @@ package com.learning.bookstore_api.exception;
 
 public class OperationNotPermittedException extends RuntimeException {
 
-    public OperationNotPermittedException() {
-    }
+    public OperationNotPermittedException() {}
 
     public OperationNotPermittedException(String message) {
         super(message);
